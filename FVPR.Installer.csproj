@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>FVPR Installer</AssemblyName>
+        <!-- Ship as a single file -->
+        <PublishSingleFile>true</PublishSingleFile>
+        <!-- Enable trimming -->
+        <PublishTrimmed>true</PublishTrimmed>
+        <!-- Enable self-contained -->
+        <SelfContained>true</SelfContained>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <DefineConstants>TRACE;DEBUG</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+    </ItemGroup>
+
+</Project>
