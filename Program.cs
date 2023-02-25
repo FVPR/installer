@@ -1,5 +1,6 @@
-﻿using System.ComponentModel;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
+
+const string Version = "1.1";
 
 var originalColor = Console.ForegroundColor;
 
@@ -63,10 +64,10 @@ void AwaitYes(string question)
 #endregion
 
 // Console Header
-Console.Title = "FVPR Installer v1.0";
-WriteLine("""
+Console.Title = $"FVPR Installer v{Version}";
+WriteLine($"""
 ===================================
-|| FVPR Installer || Version 1.0 ||
+|| FVPR Installer || Version {Version} ||
 ===================================
 
 """, ConsoleColor.DarkYellow);
@@ -109,10 +110,13 @@ Try(() => settings = JObject.Parse(raw), "Failed to parse the settings.json file
 
 // Check if the "--dev" argument was passed
 var useDev = args.Any(x => x == "--dev");
+var displayName = useDev ? "FVPR Dev" : "FVPR";
 var repo = useDev
 	? "https://dev.vpm.foxscore.de/api/v1/index"
 	: "https://vpm.foxscore.de/api/v1/index";
-var displayName = useDev ? "FVPR Dev" : "FVPR";
+var tosUrl = useDev
+	? "https://dev.vpm.foxscore.de/tos"
+	: "https://vpm.foxscore.de/tos";
 
 // Check if the userRepos array exists
 JArray? userRepos = null;
@@ -157,6 +161,12 @@ else
 	Write($" the {displayName} repository ", ConsoleColor.Gray);
 	WriteLine($"({repo}).", ConsoleColor.DarkGray);
 	AwaitYes("Do you want to continue?");
+	Console.WriteLine();
+	
+	// Accept the terms of service
+	Write("FVPR Terms of Service: ", ConsoleColor.Gray);
+	WriteLine(tosUrl, ConsoleColor.DarkCyan);
+	AwaitYes("By pressing Y, you confirm that you have read, understand, and agree to the terms of service");
 	Console.WriteLine();
 
 	// Add the repo to the userRepos array
