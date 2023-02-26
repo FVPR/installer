@@ -1,4 +1,8 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using System.Diagnostics;
+using System.IO.Compression;
+using System.Net;
+using System.Runtime.InteropServices;
+using Newtonsoft.Json.Linq;
 
 const string Version = "1.1";
 
@@ -42,23 +46,28 @@ void Try(Action action, string errorMessage)
 	}
 }
 
-void AwaitYes(string question)
+bool AwaitYes(string question, bool failOnEscape = true)
 {
 	// Console.Write($"{question} (Y/n)");
 	Write(question, ConsoleColor.Gray);
-	Write(" (Y/n)", ConsoleColor.Cyan);	
+	Write(" (Y/n)", ConsoleColor.Cyan);
 
 	Await:
 	var input = Console.ReadKey(true).Key;
+
 	if (input is ConsoleKey.N or ConsoleKey.Escape)
 	{
 		Console.WriteLine();
-		Exit(1);
+		if (failOnEscape)
+			Exit(1);
+		return false;
 	}
-	else if (input is not ConsoleKey.Y)
+
+	if (input is not ConsoleKey.Y)
 		goto Await;
-	
+
 	Console.WriteLine();
+	return true;
 }
 
 #endregion
@@ -142,7 +151,7 @@ if (settings["userRepos"]!.Any(x => x["url"]?.ToString() == repo))
 	WriteLine($"({repo}).", ConsoleColor.DarkGray);
 	AwaitYes("Are you sure you want to continue?");
 	Console.WriteLine();
-	
+
 	// Remove the repo from the userRepos array
 	var index = userRepos!.IndexOf(userRepos.First(x => x["url"]?.ToString() == repo));
 	userRepos.RemoveAt(index);
@@ -155,6 +164,8 @@ if (settings["userRepos"]!.Any(x => x["url"]?.ToString() == repo))
 }
 else
 {
+	#region Install repository
+
 	// Ask the user if they want to install the repo
 	Write("You're about to ", ConsoleColor.Gray);
 	Write("install", ConsoleColor.Green);
@@ -162,7 +173,7 @@ else
 	WriteLine($"({repo}).", ConsoleColor.DarkGray);
 	AwaitYes("Do you want to continue?");
 	Console.WriteLine();
-	
+
 	// Accept the terms of service
 	Write("FVPR Terms of Service: ", ConsoleColor.Gray);
 	WriteLine(tosUrl, ConsoleColor.DarkCyan);
@@ -181,7 +192,136 @@ else
 		"Failed to write to the settings.json file!"
 	);
 	WriteLine($"Successfully installed the {displayName} repository!", ConsoleColor.DarkGreen);
+
+	#endregion
+
+	#region Install user-repo fix
+
+	var installationPath = Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		"Programs", "VRChat Creator Companion"
+	);
+
+	if (!File.Exists(Path.Combine(installationPath, "CreatorCompanion.exe")))
+	{
+		Console.WriteLine();
+		WriteLine(
+			"It is highly recommended to to install the VccUserRepoFix mod, but it is not possible to do so automatically.",
+			ConsoleColor.DarkYellow
+		);
+		Write("Please install it manually: ", ConsoleColor.Gray);
+		WriteLine("https://github.com/foxscore/vcc-user-repo-fix", ConsoleColor.DarkCyan);
+		goto AfterInstall;
+	}
+
+	var modsPath = Path.Combine(installationPath, "Mods");
+	var dllPath = Path.Combine(modsPath, "VccUserRepoFix.dll");
+
+	// Check if the VccUserRepoFix.dll file exists, but only on windows
+	if (!File.Exists(dllPath) && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+	{
+		var didInstallMelonLoader = false;
+
+		// Ask the user if they want to install the user-repo fix
+		Console.WriteLine();
+		WriteLine("The VccUserRepoFix mod is not installed, but highly recommended.", ConsoleColor.Gray);
+		WriteLine("Without it, using the Creator Companion with user repositories extremely slow.", ConsoleColor.Gray);
+		Write("Source code: ", ConsoleColor.Gray);
+		WriteLine("https://github.com/foxscore/vcc-user-repo-fix", ConsoleColor.DarkGray);
+		if (!AwaitYes("Do you want to install it?", false))
+		{
+			WriteLine("Skipping installation of the VccUserRepoFix mod...", ConsoleColor.DarkGray);
+			Exit();
+		}
+
+		// Get the version of the Creator Companion
+		var version = FileVersionInfo.GetVersionInfo(Path.Combine(installationPath, "CreatorCompanion.exe"))
+			.FileVersion;
+		if (version is null) goto AfterInstall;
+
+		// If the version does not start with "2019.4.31", we assume it's the new release of the Creator Companion
+		// which is no longer based on Unity, and should have the issue already fixed
+		if (!version.StartsWith("2019.4.31")) goto AfterInstall;
+
+		// If MelonLoader is not installed, install it
+		if (!Directory.Exists(Path.Combine(installationPath, "MelonLoader")))
+		{
+			didInstallMelonLoader = true;
+
+			// Download MelonLoader
+			WriteLine("Downloading MelonLoader...", ConsoleColor.DarkGray);
+			var tempPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+			try
+			{
+				new WebClient().DownloadFile(
+					"https://github.com/LavaGang/MelonLoader/releases/latest/download/MelonLoader.x64.zip",
+					tempPath
+				);
+			}
+			catch (Exception e)
+			{
+				WriteLine("Failed to download MelonLoader!", ConsoleColor.DarkRed);
+				WriteLine($"Error: {e.Message}", ConsoleColor.DarkRed);
+				Exit(1);
+			}
+
+			// Extract MelonLoader, overwriting existing files
+			WriteLine("Extracting MelonLoader...", ConsoleColor.DarkGray);
+			try
+			{
+				ZipFile.ExtractToDirectory(
+					tempPath,
+					installationPath,
+					true
+				);
+			}
+			catch (Exception e)
+			{
+				WriteLine("Failed to extract MelonLoader!", ConsoleColor.DarkRed);
+				WriteLine($"Error: {e.Message}", ConsoleColor.DarkRed);
+				Exit(1);
+			}
+
+			// Delete the temporary file (no fail condition)
+			try
+			{
+				File.Delete(tempPath);
+			}
+			catch
+			{
+				// ignored
+			}
+		}
+
+		// Create the Mods folder
+		Directory.CreateDirectory(modsPath);
+
+		// Download the VccUserRepoFix mod
+		WriteLine("Downloading VccUserRepoFix...", ConsoleColor.DarkGray);
+		try
+		{
+			new WebClient().DownloadFile(
+				"https://github.com/foxscore/vcc-user-repo-fix/releases/latest/download/VccUserRepoFix.dll",
+				dllPath
+			);
+		}
+		catch (Exception e)
+		{
+			WriteLine("Failed to download VccUserRepoFix!", ConsoleColor.DarkRed);
+			WriteLine($"Error: {e.Message}", ConsoleColor.DarkRed);
+			Exit(1);
+		}
+
+		// Done
+		WriteLine(
+			didInstallMelonLoader
+				? "Successfully installed MelonLoader and the VccUserRepoFix mod!"
+				: "Successfully installed the VccUserRepoFix mod!", ConsoleColor.DarkGreen);
+
+		#endregion
+	}
 }
 
 // Exit the program
+AfterInstall:
 Exit();
