@@ -4,7 +4,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using Newtonsoft.Json.Linq;
 
-const string Version = "1.1";
+const string Version = "1.2";
 
 var originalColor = Console.ForegroundColor;
 
