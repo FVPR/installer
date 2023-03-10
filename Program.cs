@@ -4,7 +4,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using Newtonsoft.Json.Linq;
 
-const string Version = "1.2";
+const string Version = "2.0";
 
 var originalColor = Console.ForegroundColor;
 
@@ -122,10 +122,10 @@ var useDev = args.Any(x => x == "--dev");
 var displayName = useDev ? "FVPR Dev" : "FVPR";
 var repo = useDev
 	? "https://dev.vpm.foxscore.de/api/v1/index"
-	: "https://vpm.foxscore.de/api/v1/index";
+	: "https://api.fvpr.dev/index";
 var tosUrl = useDev
 	? "https://dev.vpm.foxscore.de/tos"
-	: "https://vpm.foxscore.de/tos";
+	: "https://fvpr.dev/tos";
 
 // Check if the userRepos array exists
 JArray? userRepos = null;
@@ -214,6 +214,15 @@ else
 		goto AfterInstall;
 	}
 
+	// Get the version of the Creator Companion
+	var version = FileVersionInfo.GetVersionInfo(Path.Combine(installationPath, "CreatorCompanion.exe"))
+		.FileVersion;
+	if (version is null) goto AfterInstall;
+
+	// If the version does not start with "2019.4.31", we assume it's the new release of the Creator Companion
+	// which should have the issue already fixed
+	if (!version.StartsWith("2019.4.31")) goto AfterInstall;
+
 	var modsPath = Path.Combine(installationPath, "Mods");
 	var dllPath = Path.Combine(modsPath, "VccUserRepoFix.dll");
 
@@ -233,15 +242,6 @@ else
 			WriteLine("Skipping installation of the VccUserRepoFix mod...", ConsoleColor.DarkGray);
 			Exit();
 		}
-
-		// Get the version of the Creator Companion
-		var version = FileVersionInfo.GetVersionInfo(Path.Combine(installationPath, "CreatorCompanion.exe"))
-			.FileVersion;
-		if (version is null) goto AfterInstall;
-
-		// If the version does not start with "2019.4.31", we assume it's the new release of the Creator Companion
-		// which is no longer based on Unity, and should have the issue already fixed
-		if (!version.StartsWith("2019.4.31")) goto AfterInstall;
 
 		// If MelonLoader is not installed, install it
 		if (!Directory.Exists(Path.Combine(installationPath, "MelonLoader")))
